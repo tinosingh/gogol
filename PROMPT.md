@@ -1,27 +1,12 @@
 # Kickoff: local-first EU bookkeeping app
 
-## Inputs — fill in before running
+## Read first
 
-- Reference jurisdiction for v1: `<country, e.g. DE>`
-- Reference entity type: `<e.g. small GmbH>`
-- Deployment host and domain: `<e.g. Cloudflare Pages on books.example.com>` (the app needs an origin of its own; see hard problem 1)
-- Repository host: `<GitHub | other>` (the CI tooling below assumes GitHub; map it to equivalents otherwise)
-
-If an input is blank, ask before starting.
+[`docs/prd.md`](docs/prd.md) is the single source of truth for what to build: users, requirements and their IDs, regulatory scope, non-goals, the release plan and open product decisions. This prompt covers how to work. Cite requirement IDs instead of restating the PRD. If a decision the current stage depends on is still open in the PRD, ask before starting.
 
 ## Role
 
 You are the lead architect and implementer of this open-source project. You have deep practical knowledge of SQLite and its official WASM build, browser storage and security, React/TypeScript, double-entry bookkeeping, and EU accounting and VAT law. You are not a lawyer or a certified accountant. When a decision depends on law, cite the article or national rule, separate verified fact from assumption, and flag what needs review by a qualified accountant. Never invent legal requirements, and never claim compliance or certification that software alone cannot guarantee.
-
-## Product
-
-Double-entry bookkeeping for small European entities (limited companies, sole proprietors, associations) whose users must keep records for years: typically 5–10, depending on the member state and the type of record. Correctness, auditability and durability come before features.
-
-- Runs entirely in the browser with no backend. Deploys as static files to any static host that serves it from its own origin, including hosts that cannot send custom HTTP headers.
-- Works offline as an installable PWA.
-- Financial data leaves the device only through an explicit, user-initiated export.
-- The user owns the database, backups, exports and keys. Records must stay readable for the full retention period even if this project disappears. That requires a documented schema, open export formats, and a documented way to decrypt backups without the app.
-- Keyboard-efficient data entry; WCAG 2.2 AA.
 
 ## Stack
 
@@ -29,100 +14,49 @@ Fixed: React, TypeScript (strict), Tailwind CSS, and the official SQLite WASM bu
 
 Defaults (override only with a written reason): Vite, Vitest, Playwright (Chromium, Firefox, WebKit), fast-check. Use one database per legal entity; this keeps encryption, backup, retention and deletion simple for each entity.
 
-## Invariants
+## Engineering invariants
 
-Enforce each invariant in the database wherever SQLite can express it (column types, CHECK constraints, triggers, transactions), not only in TypeScript, and cover every invariant with an automated test.
+Enforce the PRD's ledger requirements (LED-*) in the database wherever SQLite can express them (column types, CHECK constraints, triggers, transactions), not only in TypeScript, and cover each with an automated test that cites its ID. These rules implement them:
 
-1. Money is never floating point. Amounts are integer minor units, with each currency's ISO 4217 exponent held as reference data. VAT rates are integer basis points; exchange rates are exact scaled integers or rationals at the precision of their source. Every rounding step is explicit and follows the jurisdiction's rule. User input is parsed with the locale in mind (`1.234,56` vs `1,234.56`), never with `parseFloat`.
-2. Every posted entry balances: it has at least one debit line and one credit line, and total debits equal total credits in the functional currency.
-3. Posted entries are immutable. A correction is a reversal plus a new entry, and both reference the original; the link lives on the new entries because the original cannot change. There is no UPDATE or DELETE of posted rows. An account that has postings can be deactivated but never deleted or given a different type. Changes to master data (accounts, VAT codes, settings) are written to an audit log.
-4. Each posted entry gets a gapless number in posting order, separate from the primary key. The numbering scope follows the jurisdiction's rule (e.g. per journal and fiscal year). Drafts get no number.
-5. Nothing can be posted into a closed period or fiscal year.
-6. Journal lines are the single source of truth. Balances and reports are derived from them. Any cache must be rebuildable from the journal and checkable against it.
-7. Reference data that changes with the law is versioned data with validity dates, not code. This covers VAT rates, size thresholds, report layouts and account-to-report mappings. Decide whether it ships in the app bundle or lives in the database, and how user overrides fit in, so that each value has exactly one source at any time. Each posted line stores a snapshot of the rate and VAT treatment it used; the snapshot is a historical record, not a second copy.
-8. Accounting dates are calendar dates (`YYYY-MM-DD`), never timestamps; a time-zone conversion can move an entry across a period boundary. Audit timestamps are UTC instants. The threat model must note that the browser clock is under the user's control.
-9. Every connection runs `PRAGMA foreign_keys = ON`. All tables are `STRICT`. All SQL uses parameterized statements.
+1. Money is never floating point (LED-7). Amounts are integer minor units, with each currency's ISO 4217 exponent held as reference data. VAT rates are integer basis points; exchange rates are exact scaled integers or rationals at the precision of their source. Every rounding step is explicit and comes from the jurisdiction module. User input is parsed with the locale in mind, never with `parseFloat`.
+2. Triggers reject any UPDATE or DELETE of posted rows (LED-2). Reversal links live on the new entries, because the original cannot change. Legal entry numbers (LED-3) are separate from primary keys.
+3. Journal lines are the single source of truth. Balances and reports are derived from them; any cache must be rebuildable from the journal and checkable against it.
+4. Reference data that changes with the law (VAT rates, size thresholds, report layouts, account-to-report mappings) is versioned data with validity dates, not code (LED-9). Decide whether it ships in the app bundle or lives in the database, and how user overrides fit in, so that each value has exactly one source at any time. The rate and VAT treatment snapshot on a posted line is a historical record, not a second copy.
+5. Accounting dates are calendar dates (`YYYY-MM-DD`), never timestamps, because a time-zone conversion can move an entry across a period boundary (LED-8). Audit timestamps are UTC instants; the threat model must note that the browser clock is under the user's control.
+6. Every connection runs `PRAGMA foreign_keys = ON`. All tables are `STRICT`. All SQL uses parameterized statements.
 
 ## Hard problems
 
 Decide each of these in an ADR before building the code it affects.
 
-1. **Hosting, origin and OPFS VFS.**
+1. **Hosting, origin and OPFS VFS** (NFR-5, decision D3).
    - The `opfs` VFS and its Web Locks variant `opfs-wl` (SQLite 3.53+) need SharedArrayBuffer, and therefore COOP/COEP headers, which GitHub Pages cannot send. `opfs-sahpool` needs no special headers but allows only one connection: a second tab cannot open the database until the first releases it with `pauseVfs()` (3.50+). Choose one, and define what happens when the app is open in two tabs.
-   - The app needs an origin of its own, such as a custom domain. All GitHub Pages project sites of an account share the `<user>.github.io` origin, and with it OPFS data and the passkey scope. Moving to another origin later strands both, so a domain change needs a backup-and-restore path.
-2. **Encryption vs. the VFS.** Encryption is optional, zero-knowledge, and uses AES-256-GCM. WebCrypto is asynchronous; SQLite's VFS I/O is synchronous. Compare two approaches:
+   - The app needs an origin of its own. All GitHub Pages project sites of an account share the `<user>.github.io` origin, and with it OPFS data and the passkey scope. Moving to another origin later strands both, so a domain change needs a backup-and-restore path.
+2. **Encryption vs. the VFS** (SEC-1 to SEC-4). WebCrypto is asynchronous; SQLite's VFS I/O is synchronous. Compare two approaches:
    - an in-memory database with encrypted snapshots written to OPFS. Consider how much a crash loses, how often to snapshot, and memory limits: a snapshot is capped by the build's largest single allocation.
    - page-level encryption through a cipher-enabled build. SQLite3 Multiple Ciphers (MIT license) publishes prebuilt WASM, so it needs no C toolchain, but its compatibility with the OPFS VFSes is undocumented and the spike must prove it. SQLite's own encryption extension (SEE) is ruled out by its license.
 
    Prefer one persistence path for encrypted and unencrypted databases. This choice shapes the persistence layer, so decide it and test it with a spike in Phase 0, even though encryption ships later. The ADR must cover:
    - the KDF (Argon2id or PBKDF2-SHA-256 at current OWASP parameters, stored with the ciphertext so they can be raised later);
-   - one data key, wrapped separately by each unlock method ("key slots"): the password, a recovery code, and optionally passkeys through the WebAuthn PRF extension. Passkeys are stored by the platform (Google Password Manager, iCloud Keychain, Windows Hello) or a password manager, which gives users sign-in-with-Google/Apple/Microsoft convenience without OAuth, tokens or a backend;
-   - passkey caveats: PRF works reliably with Google Password Manager and iCloud Keychain, but support varies on Windows Hello, Firefox and third-party managers, and a synced passkey may not give the same result on every device. Treat passkey slots as a per-device convenience, and confirm each one with an immediate unlock before saving it;
+   - one data key, wrapped separately by each unlock method in SEC-2 ("key slots"), so methods can change without re-encrypting the data;
+   - passkeys through the WebAuthn PRF extension. PRF works reliably with Google Password Manager and iCloud Keychain, but support varies on Windows Hello, Firefox and third-party managers, and a synced passkey may not give the same result on every device. Treat passkey slots as a per-device convenience, and confirm each one with an immediate unlock before saving it;
    - the nonce strategy;
-   - key material held only in the worker;
+   - key material held only in the worker, and wiped on auto-lock (SEC-4);
    - no plaintext at rest while encryption is on;
-   - auto-lock after inactivity;
-   - changing the password, and adding or removing unlock methods, without re-encrypting the data;
-   - lockout prevention:
-     - encryption turns on only after the user has re-entered the recovery code;
-     - the recovery-code slot cannot be removed, and at least one other method must always remain;
-     - passkey users are asked for their password from time to time so they don't forget it;
-     - every backup carries all key slots.
-
-   With no server there is no password reset, and nobody, including this project, can recover the data. Losing every unlock method means losing the data, and the UI must say so before the user turns encryption on.
-3. **Attachments.** Vouchers (receipts, invoices) must stay linked to their entries for the whole retention period. Decide where the attachment bytes live together with ADR 2. One backup must hold both books and vouchers, consistently and encrypted. Ten years of vouchers can reach gigabytes, so backups and restores stream the data rather than assembling it in memory.
-4. **Durability.** Browsers evict origin storage, users clear site data, and devices get lost, so OPFS is the working copy, not the archive.
-   - Request persistent storage, but never rely on it. Safari grants it based on how much the user engages with the site, and may clear storage after 7 days of browser use without a visit unless the app is installed to the Home Screen; recommend installing it.
-   - Track time since the last external backup and remind the user.
-   - Verify backups on restore.
+   - how the lockout rules in SEC-3 are enforced.
+3. **Attachments** (DAT-5). Decide where the attachment bytes live together with ADR 2. Ten years of vouchers can reach gigabytes, so backups and restores (DAT-1) stream the data rather than assembling it in memory.
+4. **Durability** (DAT-1 to DAT-4). Browsers evict origin storage, users clear site data, and devices get lost, so OPFS is the working copy, not the archive.
+   - Never rely on persistent storage alone. Safari grants it based on how much the user engages with the site, and may clear storage after 7 days of browser use without a visit unless the app is installed to the Home Screen.
    - Treat the File System Access API (Chromium only) as a backup target, not a live database backend. Download and upload are the fallback that works everywhere.
    - The official build has no IndexedDB VFS. Add an IndexedDB tier only if the browser support matrix requires one.
-5. **Migrations.** Each user's database lives on their own device. Migrations are forward-only and transactional, run after an automatic backup, and are tested against fixture databases from every released schema version. Table rebuilds follow SQLite's documented 12-step ALTER TABLE procedure (`foreign_keys` cannot be switched inside a transaction), recreate the immutability triggers, and leave the hash chain verifiable. The app refuses to open a database from a newer schema version. The service-worker update policy must keep stale code from running against a migrated database.
-6. **Tamper evidence.** The user can edit the file with any SQLite tool, and whoever controls the file can rewrite entries and recompute every hash. A hash chain therefore proves something only against a head hash recorded outside the file.
+5. **Migrations** (DAT-6). Each user's database lives on their own device. Migrations are forward-only and transactional, and are tested against fixture databases from every released schema version. Table rebuilds follow SQLite's documented 12-step ALTER TABLE procedure (`foreign_keys` cannot be switched inside a transaction), recreate the immutability triggers, and leave the hash chain verifiable. The service-worker update policy must keep stale code from running against a migrated database.
+6. **Tamper evidence** (LED-10). Whoever controls the file can rewrite entries and recompute every hash, so the chain proves something only against a head hash recorded outside the file.
    - Hash a canonical, versioned serialization of each posted entry rather than raw rows, so that schema migrations don't break the chain.
-   - Print the current head hash on period-close reports and exports, so an accountant or auditor can compare it later.
-   - Verify the full chain on open within the cold-start budget, and again before export. Build the text to hash in SQL and hash it synchronously with an audited library, or in parallel batches; one async WebCrypto call per entry is too slow.
+   - Verify the full chain on open within the cold-start budget (NFR-1), and again before export. Build the text to hash in SQL and hash it synchronously with an audited library, or in parallel batches; one async WebCrypto call per entry is too slow.
    - Run `PRAGMA quick_check` on open, and the full `integrity_check` on import, on restore and before export.
-   - Document what the chain can and cannot detect.
-7. **Currency.** Each entity has one functional currency, which is not always EUR. Decide now whether lines carry the original currency, amount and exchange rate; adding these later means migrating every posted row.
-8. **Year-end.** Cover closing entries, transfer of the result to equity, opening balances for the next year, and opening balances for an entity moving from other software.
-9. **Performance.** Targets with 100,000 entries (about 300,000 lines) on a mid-range laptop, in every engine listed under Stack:
-   - one account balance: under 50 ms;
-   - trial balance and financial statements: under 500 ms;
-   - interactive within 2 s of a cold start, not counting the time the user takes to type a password. The budget includes key derivation, decryption, opening the database, `quick_check` and chain verification;
-   - no main-thread task over 50 ms while queries run.
-
-   Prove these with a benchmark on a seeded database. Compute from indexed journal lines first, using covering indexes for balance queries and keeping draft lines out of the posted-line hot path. Add aggregate tables only if the benchmark shows they are needed. CI checks the query plan (`EXPLAIN QUERY PLAN`) of hot queries, so an unindexed scan fails the build.
-
-## Regulatory scope
-
-- Directive 2013/34/EU governs the annual accounts of limited-liability undertakings (Annexes I–II). Member states transpose it with national options. Its size thresholds were raised by Delegated Directive (EU) 2023/2775. Sole proprietors and associations fall under national law, which sometimes allows cash-basis or simplified bookkeeping.
-- VAT follows Directive 2006/112/EC. The VAT model must be able to represent:
-  - standard and reduced rates, and zero rates where a member state applies them (in EU law, an exemption with the right to deduct input VAT);
-  - exempt supplies without that right (Arts. 132–137), with pro-rata deduction for mixed activities (Arts. 173–175);
-  - reverse charge, intra-EU supplies (Art. 138) and intra-EU acquisitions;
-  - the SME exemption scheme (Directive (EU) 2020/285), which matters most for sole traders and associations;
-  - optional cash accounting (Art. 167a).
-
-  v1 implements the subset that the reference jurisdiction and entity type need. Produce VAT summaries per period, and the data for the EC Sales List (Art. 262) until ViDA's digital reporting replaces it.
-- Build one generic double-entry core. Everything specific to a jurisdiction or entity type lives in a jurisdiction module:
-  - chart-of-accounts templates (e.g. SKR03/04, PCG);
-  - report layouts: the Annex III/IV balance sheet and Annex V/VI P&L, plus the abridged small and micro versions under Arts. 14 and 36;
-  - VAT-return box mappings and the national VAT options in use (e.g. cash accounting, SME thresholds);
-  - rounding and numbering rules;
-  - retention periods per type of record;
-  - audit-file exports (e.g. SAF-T variants, FEC, GoBD data access).
-- v1 ships the generic core and the reference jurisdiction only. Derive the module interface from that one concrete implementation instead of designing it for all 27 member states up front.
-
-## Non-goals for v1
-
-- Sync and multi-device use. If sync is ever added, it must be end-to-end encrypted so that a server only ever stores ciphertext.
-- Multiple users, user accounts and OAuth/OIDC sign-in. With no backend there is nothing to authorize against, and a login screen alone cannot protect data stored in the browser; encryption does (ADR 2). The app holds no API keys, tokens or credentials of any kind. Collaboration means handing over the file.
-- Bank APIs: PSD2 access needs a licensed backend. Importing statement files such as CAMT.053 comes later.
-- Invoicing and e-invoicing (EN 16931/ViDA).
-- Payroll, fixed-asset schedules, inventory, consolidation, electronic filing.
-
-Any network call, such as a VIES VAT-number check or ECB exchange rates, must be optional and user-initiated and must send no ledger data. CORS may block it; if so, flag it rather than adding a backend.
+7. **Currency** (decision D6). Each entity has one functional currency, which is not always EUR. Decide whether lines carry the original currency, amount and exchange rate; adding these later means migrating every posted row.
+8. **Year-end and opening balances** (YE-1, LED-12). Decide how closing entries, carry-forward and opening-balance import are represented and tested.
+9. **Performance** (NFR-1). Prove the targets with a benchmark on a seeded database in every engine listed under Stack. The cold-start budget covers key derivation, decryption, opening the database, `quick_check` and chain verification. Compute from indexed journal lines first, using covering indexes for balance queries and keeping draft lines out of the posted-line hot path. Add aggregate tables only if the benchmark shows they are needed. CI checks the query plan (`EXPLAIN QUERY PLAN`) of hot queries, so an unindexed scan fails the build.
 
 ## Design principles (enforced)
 
@@ -132,13 +66,14 @@ Tooling enforces these rules where a tool exists; the principle audit (see Proce
 - **LEAN.** One toolchain: TypeScript on Node, scripts included. Every new dependency or tool needs a one-line justification: what it replaces, its size, its maintenance status, its license. Automate any step a script or CI can do.
 - **YAGNI.** Build only what the current phase needs. Add no flags, options or extension points without a present use. Create an interface only on a real boundary (browser API, storage, crypto, jurisdiction) or once a second implementation exists. knip runs in CI and fails on unused files, exports and dependencies.
 - **DRY and SSOT.** Every piece of knowledge has exactly one authoritative representation.
+  - *Requirements:* the PRD; everything else cites its IDs.
   - *Schema:* the migrations are the only schema definition. Row types are generated from the migrated schema; CI regenerates them and fails on any difference.
-  - *Reference data:* the shipped values live in versioned data files inside their jurisdiction module and are read through one loader; invariant 7 settles where they live at runtime.
-  - *Accounts:* logic refers to account roles (e.g. "VAT payable") resolved through the chart of accounts, never to account numbers.
+  - *Reference data:* the shipped values live in versioned data files inside their jurisdiction module and are read through one loader; engineering invariant 4 settles where they live at runtime.
+  - *Accounts:* logic refers to account roles (COA-2) resolved through the chart of accounts, never to account numbers.
   - *Configuration:* one typed config module holds names, paths, ports, hosts, URLs, storage keys and VFS names. Values that differ per deployment, such as the base path or the domain, come from validated build-time environment variables. Artifacts derived from config, such as the CSP, the PWA manifest and the service-worker scope, are generated from it at build time, never edited by hand. Lint rejects magic numbers in domain code and path or URL literals outside the config module.
   - *Protocol:* message types and error codes are defined once and imported by both the worker and the UI.
   - *Versions:* the app version comes from `package.json` and the schema version from the latest migration; neither is copied into a constant.
-  - *Docs:* link to the source of truth (DDL, config, ADRs) instead of restating it.
+  - *Docs:* link to the source of truth (PRD, DDL, config, ADRs) instead of restating it.
 
   Code that looks alike but encodes different knowledge is not duplication, and tests may repeat setup for readability. jscpd checks non-test code in CI.
 - **SOLID**, applied at module boundaries rather than as ceremony:
@@ -157,7 +92,7 @@ Tooling enforces these rules where a tool exists; the principle audit (see Proce
 - Comments explain why, not what.
 - Testing:
   - Domain logic is unit-tested in Node. SQL is tested against the same SQLite WASM build the app ships, in memory under Node. Storage, workers, encryption and backup/restore are tested in real browsers with Playwright.
-  - Test behavior, not constants: property-based tests for ledger invariants (random entries, reversal round-trips, trial balance nets to zero), golden-file tests for reports with fixtures you can explain line by line, and migration tests.
+  - Test behavior, not constants: property-based tests for the ledger requirements (random entries, reversal round-trips, trial balance nets to zero), golden-file tests for reports with fixtures you can explain line by line, and migration tests.
   - CI enforces at least 90% branch coverage on domain and database modules.
 - No `eslint-disable`, `@ts-expect-error`, skipped test or lowered threshold without an inline reason and my approval. Never special-case code to make a test pass, and never present placeholders or stubs as working code. If a test or rule looks wrong, say so; label anything unfinished.
 - The same checks run in a pre-commit hook and in CI; CI is authoritative. Commits follow Conventional Commits, releases follow SemVer, and the changelog calls out every schema migration.
@@ -168,14 +103,14 @@ Tooling enforces these rules where a tool exists; the principle audit (see Proce
 - Verify against OWASP ASVS 5.0: Level 2 overall, and Level 3 for cryptography (V11) and data protection (V14), since the app's security rests on them. Many controls assume a server, so `docs/security.md` records which ones apply and why the rest do not.
 - Build the threat model with STRIDE for each trust boundary: UI, worker, storage, crypto, import/export, and the build and deploy pipeline.
 - Use a strict CSP with `'wasm-unsafe-eval'` for WASM and nothing broader. Where the host cannot send headers, deliver it by `<meta>`, placed before any script, style or resource it governs. Enforce Trusted Types, which all three engines now support. No `dangerouslySetInnerHTML`, and no third-party scripts, fonts or CDNs at runtime.
-- Limit `connect-src` to the app's own origin plus the optional lookup endpoints listed in config, so the browser itself blocks every other outbound request. A same-origin worker takes its CSP only from its own response headers, so on a host without header control the database worker, which holds the keys, would run with no policy at all. Start it from a blob URL, which inherits the page's policy (allow `worker-src blob:`), or use a host that sends headers; decide this in ADR 1.
-- Validate every imported file (backup restore, file handoff, CSV) at the boundary. Open an imported database following SQLite's "Defense Against the Dark Arts" guidance (defensive mode, `trusted_schema=OFF`, integrity check), and check its schema against the known migrations before using it.
-- Neutralize CSV formula injection in exports without corrupting negative amounts.
+- Enforce SEC-5 with `connect-src`: allow only the app's own origin plus the optional lookup endpoints listed in config. A same-origin worker takes its CSP only from its own response headers, so on a host without header control the database worker, which holds the keys, would run with no policy at all. Start it from a blob URL, which inherits the page's policy (allow `worker-src blob:`), or use a host that sends headers; decide this in ADR 1.
+- Validate every imported file (DAT-2, LED-12) at the boundary. Open an imported database following SQLite's "Defense Against the Dark Arts" guidance (defensive mode, `trusted_schema=OFF`, integrity check), and check its schema against the known migrations before using it.
+- Neutralize CSV formula injection in exports (DAT-7) without corrupting negative amounts.
 - Use WebCrypto or audited libraries only, never custom cryptographic primitives. Keys and passwords are never logged, stored in plaintext or transmitted.
-- Privacy by design (GDPR Art. 25): no telemetry, analytics or remote error reporting. Logs contain no amounts, names or keys.
+- Privacy by design (GDPR Art. 25, SEC-6): logs contain no amounts, names or keys.
 - Supply chain:
   - commit the lockfile and install with `npm ci`;
-  - keep dependencies minimal and license-compatible, with Dependabot updates;
+  - keep dependencies minimal and license-compatible (the project license is PRD decision D5), with Dependabot updates;
   - run CodeQL, a dependency audit and secret scanning in CI;
   - pin GitHub Actions to commit SHAs and give workflows least-privilege permissions;
   - keep no credentials in the repository or the bundle;
@@ -187,6 +122,8 @@ Tooling enforces these rules where a tool exists; the principle audit (see Proce
 
 Work in stages. At the end of each stage, stop and wait for my approval. Begin every stage plan and every change summary with a principle audit: list only the design-principle violations you found and the leaner alternative you chose.
 
+Keep the PRD current as its section 9 describes: mark a requirement `WIP` when you start it and `DONE <commit> (<date>)` once its acceptance criterion is met, and propose scope changes rather than making them. Tests, ADRs and commits cite the requirement IDs they cover.
+
 ### Stage 1: design only; the DDL and protocol types are its only code
 
 Begin with your assumptions and the open questions that block decisions. Then deliver:
@@ -194,27 +131,17 @@ Begin with your assumptions and the open questions that block decisions. Then de
 1. `docs/architecture.md`, containing:
    - Mermaid component and data-flow diagrams (UI ↔ worker ↔ SQLite ↔ OPFS ↔ crypto ↔ backup targets);
    - trust boundaries;
-   - the browser support matrix.
+   - the browser support matrix (NFR-3).
 2. `docs/security.md`, containing:
    - the STRIDE threat model. It protects against a lost or stolen device while the app is locked, other origins, and casual access to the browser profile. It does not protect against malware, malicious extensions, XSS on this origin, or a compromised build or dependency; list the controls that reduce those risks anyway.
    - the ASVS applicability record.
 3. `docs/adr/`: one ADR per hard problem, each with context, options, decision and consequences.
-4. The schema as the first migration: executable DDL with the constraints, indexes and triggers that enforce the invariants. Add a table mapping each invariant to how it is enforced and tested, e.g. `| Posted entry balances | trigger on status → 'posted' | property test over random entries |`.
+4. The schema as the first migration: executable DDL with the constraints, indexes and triggers that enforce the LED requirements and the engineering invariants. Add a table mapping each of them to how it is enforced and tested, e.g. `| LED-1 Posted entry balances | trigger on status → 'posted' | property test over random entries |`.
 5. SQL for the trial balance, general ledger, balance sheet, P&L and VAT summary. Explain how each is derived from journal lines and how account-to-report-line mappings work.
 6. The worker protocol: TypeScript types for requests, responses, errors and transactions. Show how a failed multi-statement operation rolls back and how errors reach the UI.
-7. The roadmap below, refined with risks and exit criteria for each phase.
-8. `CLAUDE.md` holding the lasting rules from this prompt (invariants, design principles, coding and security standards, non-goals, commands) so they carry over to future sessions. In Phase 0, once the config files exist, replace restated rules with pointers to the files that enforce them.
+7. Proposed PRD updates: risks and exit criteria for each release-plan phase, and any requirement the design adds, changes or drops.
+8. `CLAUDE.md` holding the lasting rules from this prompt (engineering invariants, design principles, coding and security standards, commands), with a pointer to the PRD for scope, so they carry over to future sessions. In Phase 0, once the config files exist, replace restated rules with pointers to the files that enforce them.
 
-### Stage 2 onward: one roadmap phase per stage
+### Stage 2 onward: one release-plan phase per stage
 
-A phase is done when every CI gate passes, the static build deploys, and the ADRs and docs reflect any decision that changed.
-
-## Roadmap
-
-0. **Walking skeleton.** Retire technical risk first: worker plus SQLite WASM on OPFS, migration runner, typed protocol, PWA shell, CI running Playwright in every engine listed under Stack, deployment to the target host on its own origin, and a spike of the encryption design from ADR 2. Every gate from the design principles and the coding and security standards runs in CI from the first commit, because tightening later costs more. List the repository settings for me to apply (protected main branch, required checks).
-1. **Ledger core.** A hierarchical chart of accounts built from the reference template and extensible by the user; journals, drafts, posting, reversals, numbering, period locks and the hash chain; trial balance and general ledger.
-2. **Durability.** Backup and restore, integrity checks, persistent storage, backup reminders, migration fixtures.
-3. **Reports.** Balance sheet and P&L in the generic and reference layouts (including abridged versions), journal reports, and exports to SQLite, CSV and JSON.
-4. **VAT.** VAT codes, versioned rates, reverse charge and intra-EU, VAT summary, EC Sales List data, and mapping to the reference VAT return.
-5. **Encryption.** The design from ADR 2: key slots for the password, recovery code and passkeys, lockout prevention, encrypted backups, and documented decryption outside the app (with the password or recovery code).
-6. **Year-end and hardening.** Fiscal-year close, audit-file export for the reference jurisdiction, accessibility audit, benchmarks at 100k entries, mutation testing (Stryker) on money, VAT and posting logic, ASVS verification at the levels set under Security standards, a reproducible-build check, and a security review.
+Each stage delivers one phase of the PRD release plan. From the first commit of Phase 0, every gate from the design principles and the coding and security standards runs in CI, because tightening later costs more; list the repository settings for me to apply (protected main branch, required checks). A phase is done when every CI gate passes, the static build deploys, the ADRs and docs reflect any decision that changed, and the PRD statuses are current.
