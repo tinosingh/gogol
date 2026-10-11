@@ -1,8 +1,8 @@
 # PRD: gogol, local-first EU bookkeeping
 
-- **Status:** Draft v0.1, awaiting owner approval
+- **Status:** Draft v0.2, awaiting owner approval
 - **Owner:** @tinosingh
-- **Last updated:** 2026-10-09
+- **Last updated:** 2026-10-10
 - **Repository:** <https://github.com/tinosingh/gogol>
 
 This document is the single source of truth for what gogol does and why: its users, requirements, scope, release plan and open product decisions. How it is built lives in [`PROMPT.md`](../PROMPT.md) (later `CLAUDE.md`) and in the ADRs under `docs/adr/`. Those documents cite requirement IDs from here instead of restating them.
@@ -137,6 +137,12 @@ Priority is for v1: Must, Should or Could. Phase refers to the release plan (sec
 | --- | --- | --- | --- | --- | --- |
 | YE-1 | Fiscal-year close: closing entries, transfer of the result to equity, and carry-forward of balance-sheet accounts as the next year's opening balances. | The new year's opening trial balance equals the closing balance sheet. | Must | 6 | TODO |
 
+#### Licensing
+
+| ID | Requirement | Acceptance criterion | Priority | Phase | Status |
+| --- | --- | --- | --- | --- | --- |
+| LIC-1 | The app shows the copyright notice, the "Licensed under the EUPL" notice and a link to the source repository, as EUPL Articles 3, 5 and 11 require of anyone serving the built app. | An About screen shows all three, and the source link works in every deployed build. | Must | 0 | TODO |
+
 ### 4.3 Non-functional requirements
 
 | ID | Requirement | Acceptance criterion | Priority | Phase | Status |
@@ -173,7 +179,7 @@ Each phase ends with every CI gate green and a deployed build; `PROMPT.md` defin
 
 | Phase | Goal | Requirements and exit criteria |
 | --- | --- | --- |
-| 0. Walking skeleton | Retire technical risk: SQLite WASM on OPFS in a worker, migration runner, typed protocol, PWA shell, CI in every engine, deployment, encryption spike | SEC-5, SEC-6, NFR-1 (benchmark harness), NFR-2, NFR-3, NFR-4 (automated checks), NFR-5 |
+| 0. Walking skeleton | Retire technical risk: SQLite WASM on OPFS in a worker, migration runner, typed protocol, PWA shell, CI in every engine, deployment, encryption spike | SEC-5, SEC-6, LIC-1, NFR-1 (benchmark harness), NFR-2, NFR-3, NFR-4 (automated checks), NFR-5 |
 | 1. Ledger core | Balanced, immutable, numbered books | COA-1, COA-2, LED-1 to LED-8, LED-10 to LED-13, RPT-1, RPT-2 |
 | 2. Durability | Never lose the books | DAT-1 to DAT-6 |
 | 3. Reports | Statements and exports | RPT-3, RPT-4, RPT-5, DAT-7 |
@@ -189,7 +195,7 @@ Each phase ends with every CI gate green and a deployed build; `PROMPT.md` defin
 | D2 | Reference entity type | Open | Drives the statement layouts and which VAT-5 options v1 needs. |
 | D3 | Deployment host and domain | Open | Needs an origin of its own; see `PROMPT.md` hard problem 1. |
 | D4 | Repository host | Decided 2026-10-09 | GitHub, `tinosingh/gogol`; an independent repository. |
-| D5 | Project license | Open | Needed before the first release and for dependency license checks (e.g. MIT, Apache-2.0, AGPL-3.0, EUPL-1.2). |
+| D5 | Project license | Decided 2026-10-10 | EUPL-1.2 (`LICENSE`), with a trademark policy reserving the gogol name (`TRADEMARKS.md`). A no-derivatives license was rejected: it would not be open source, and nobody could fix the app if the project stopped (DAT-9). |
 | D6 | Foreign-currency transactions in v1 | Open | Schema impact decided in ADR 7. |
 | D7 | UI language(s) for v1 | Open | Number and date formats follow the user's locale either way (LED-7, LED-8). |
 
@@ -205,3 +211,4 @@ Each phase ends with every CI gate green and a deployed build; `PROMPT.md` defin
 | Date | Version | Change |
 | --- | --- | --- |
 | 2026-10-09 | 0.1 | First draft. Product scope moved here from `PROMPT.md` (fact-checked in a6ed70a) so that it has one source. |
+| 2026-10-10 | 0.2 | D5 decided: EUPL-1.2 with a trademark policy. Added LIC-1, the license notice the EUPL requires in the served app. |
