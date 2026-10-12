@@ -1,8 +1,8 @@
 # PRD: gogol, local-first EU bookkeeping
 
-- **Status:** Draft v0.2, awaiting owner approval
+- **Status:** Draft v0.3, awaiting owner approval
 - **Owner:** @tinosingh
-- **Last updated:** 2026-10-10
+- **Last updated:** 2026-10-11
 - **Repository:** <https://github.com/tinosingh/gogol>
 
 This document is the single source of truth for what gogol does and why: its users, requirements, scope, release plan and open product decisions. How it is built lives in [`PROMPT.md`](../PROMPT.md) (later `CLAUDE.md`) and in the ADRs under `docs/adr/`. Those documents cite requirement IDs from here instead of restating them.
@@ -117,7 +117,7 @@ Priority is for v1: Must, Should or Could. Phase refers to the release plan (sec
 | DAT-5 | Vouchers (receipts, invoices) are attached to entries and kept for the retention period. | Attachments survive backup and restore; a posted entry's voucher cannot be deleted. | Must | 2 | TODO |
 | DAT-6 | Schema upgrades run automatically after an automatic backup; the app refuses a database from a newer version. | Upgrades pass from every released version; a newer file is refused. | Must | 2 | TODO |
 | DAT-7 | Exports: the complete SQLite file, plus CSV and JSON for journals and reports, safe against spreadsheet formula injection. | Exports open in common tools; injected formulas are neutralized and negative amounts stay intact. | Must | 3 | TODO |
-| DAT-8 | Audit-file export for the reference jurisdiction (e.g. FEC, SAF-T or GoBD data access). | Passes the official schema or format checker. | Must | 6 | TODO |
+| DAT-8 | Audit-file export for the reference jurisdiction (e.g. FEC, SAF-T or GoBD data access). | **Stage 1 re-scope required (§9):** Verohallinto's audit guidance VH/4494/00.01.00/2025 (in force 4.12.2025) names no required file format, only that data must let an unbroken audit trail be verified. "Passes the official checker" has no Finnish target; the acceptance criterion will be proposed in Stage 1 and requires owner approval before work begins. | Must | 6 | TODO |
 | DAT-9 | Records stay usable without the app: the schema is documented, and so is a way to decrypt backups. | A third party can read a backup by following the documentation. | Must | 5 | TODO |
 
 #### Security and privacy
@@ -191,13 +191,13 @@ Each phase ends with every CI gate green and a deployed build; `PROMPT.md` defin
 
 | ID | Decision | Status | Notes |
 | --- | --- | --- | --- |
-| D1 | Reference jurisdiction for v1 | Open | Drives the chart template, layouts, VAT return and audit file. |
-| D2 | Reference entity type | Open | Drives the statement layouts and which VAT-5 options v1 needs. |
+| D1 | Reference jurisdiction for v1 | Decided 2026-10-11 | Finland. Drives the chart template, VAT return box mappings and audit-file format. Note: Verohallinto's audit guidance VH/4494/00.01.00/2025 (in force 4.12.2025) names no required file format; DAT-8 acceptance criterion must be re-scoped in Stage 1 (§9). Pending legislation HE 96/2026 amends the Accounting Act; Stage 1 must verify its status. |
+| D2 | Reference entity type | Decided 2026-10-11 | Micro limited company (osakeyhtiö / Oy). An Oy must keep double-entry books under the Finnish Accounting Act (kirjanpitolaki); only natural persons below all three KPL size thresholds may use single-entry. |
 | D3 | Deployment host and domain | Open | Needs an origin of its own; see `PROMPT.md` hard problem 1. |
 | D4 | Repository host | Decided 2026-10-09 | GitHub, `tinosingh/gogol`; an independent repository. |
 | D5 | Project license | Decided 2026-10-10 | EUPL-1.2 (`LICENSE`), with a trademark policy reserving the gogol name (`TRADEMARKS.md`). A no-derivatives license was rejected: it would not be open source, and nobody could fix the app if the project stopped (DAT-9). |
-| D6 | Foreign-currency transactions in v1 | Open | Schema impact decided in ADR 7. |
-| D7 | UI language(s) for v1 | Open | Number and date formats follow the user's locale either way (LED-7, LED-8). |
+| D6 | Foreign-currency transactions in v1 | Decided 2026-10-11 | Own (functional) currency only. Lines carry no original-currency or exchange-rate columns in v1. Ground truth: adding three nullable currency columns to 300 000 posted rows took ~15 ms/column; no rows changed and immutability triggers held — columns can be added later without forced row migration. Design recorded in ADR 7. |
+| D7 | UI language(s) for v1 | Decided 2026-10-11 | English only. All UI text lives in one place so a translation layer can be added later. Number and date formats still follow the user's locale (LED-7, LED-8). |
 
 ## 9. Maintaining this document
 
@@ -212,3 +212,4 @@ Each phase ends with every CI gate green and a deployed build; `PROMPT.md` defin
 | --- | --- | --- |
 | 2026-10-09 | 0.1 | First draft. Product scope moved here from `PROMPT.md` (fact-checked in a6ed70a) so that it has one source. |
 | 2026-10-10 | 0.2 | D5 decided: EUPL-1.2 with a trademark policy. Added LIC-1, the license notice the EUPL requires in the served app. |
+| 2026-10-11 | 0.3 | D1 (Finland), D2 (micro Oy), D6 (own currency only), D7 (English only) decided. DAT-8 acceptance criterion flagged for Stage 1 re-scope: Finland's Verohallinto guidance VH/4494/00.01.00/2025 mandates no specific file format. |
