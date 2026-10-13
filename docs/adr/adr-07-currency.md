@@ -31,11 +31,11 @@ The additive design, to be proven in a spike before any FX feature is scheduled:
 
 ## Options considered
 
-| Option | Verdict |
-| --- | --- |
-| Original-currency and rate columns now | Rejected by D6 and YAGNI: no v1 feature uses them, and they widen every posting path. |
-| Separate ledger per currency | Rejected: the entity's books are one ledger with one functional currency. Multiplies reports and reconciliation. |
-| Additive columns later (chosen path) | Proven cheap by the owner's measurement. The functional amount stays the single balancing value. |
+| Option                                 | Verdict                                                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Original-currency and rate columns now | Rejected by D6 and YAGNI: no v1 feature uses them, and they widen every posting path.                            |
+| Separate ledger per currency           | Rejected: the entity's books are one ledger with one functional currency. Multiplies reports and reconciliation. |
+| Additive columns later (chosen path)   | Proven cheap by the owner's measurement. The functional amount stays the single balancing value.                 |
 
 ## Consequences
 

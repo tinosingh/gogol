@@ -17,11 +17,11 @@ NFR-1 targets, on 100 000 entries (about 300 000 lines) on a mid-range laptop, i
 
 **Balance computation**
 
-| Option | Notes |
-| --- | --- |
-| A. Compute from indexed journal lines at query time | **Chosen first.** Always correct, no second copy (invariant 3). Needs the right indexes. |
+| Option                                                                  | Notes                                                                                                                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. Compute from indexed journal lines at query time                     | **Chosen first.** Always correct, no second copy (invariant 3). Needs the right indexes.                                                                |
 | B. Aggregate table of account and period totals, maintained by triggers | Fast reads. A second copy, which must be rebuildable from the journal and checkable against it (invariant 3). Adds trigger logic to every posting path. |
-| C. Aggregate table rebuilt by the app | Rejected: drifts unless every write goes through one path, and the DDL cannot enforce that. |
+| C. Aggregate table rebuilt by the app                                   | Rejected: drifts unless every write goes through one path, and the DDL cannot enforce that.                                                             |
 
 **Keeping drafts out of the hot path.** Draft lines live in the same table as posted lines. Options: a partial index, a denormalized flag, or a separate draft table. A partial index cannot reference another table, and a flag set on posting would have to update lines of a row that is posted, which LED-2 forbids. **Chosen:** a partial index on `entries` (`WHERE status = 'posted'`), with queries that repeat `e.status = 'posted'` literally so the planner uses it. A separate draft table is rejected: it duplicates the line structure for no gain at this size.
 
@@ -33,9 +33,9 @@ NFR-1 targets, on 100 000 entries (about 300 000 lines) on a mid-range laptop, i
    - `entry_lines_by_entry (entry_id, account_id, debit_minor, credit_minor)`;
    - `entry_lines_by_account (account_id, entry_id, debit_minor, credit_minor)`;
    - `entries_posted_by_period (period_id, id) WHERE status = 'posted'`.
-   The UNIQUE constraints also create indexes (`entries(journal_id, fiscal_year_id, entry_number)`, `entry_lines(entry_id, line_no)`, `accounts(number)`).
+     The UNIQUE constraints also create indexes (`entries(journal_id, fiscal_year_id, entry_number)`, `entry_lines(entry_id, line_no)`, `accounts(number)`).
 2. **No aggregate tables in v1.** Option A first. Option B is added only if the benchmark shows the Option A plan misses NFR-1 at full scale, with the benchmark result cited in the migration that adds it.
-3. **Benchmark harness (Phase 0):** a seeded database generator (100 000 entries, 300 000 lines, deterministic seed) run in Chromium, Firefox and WebKit through Playwright for the browser path, and in Node with the same SQLite WASM build for the SQL path. Results go to CI as an artifact, with thresholds from NFR-1. Thresholds are not loosened without an owner decision.
+3. **Benchmark harness (Phase 0):** a seeded database generator (100 000 entries, 300 000 lines, deterministic seed) run in Chromium through Playwright for the browser path, and in Node with the same SQLite WASM build for the SQL path. Results go to CI as an artifact, with thresholds from NFR-1. Thresholds are not loosened without an owner decision.
 4. **Cold-start budget, measured in steps:** key derivation (PBKDF2 count from ADR 2), decryption, open, `quick_check`, chain verification (ADR 6). Each step is timed. If the sum breaks 2 s, the first step to cut is chain verification (tail on open, full pass on export), with the choice recorded in ADR 6.
 5. **CI query-plan check:** `EXPLAIN QUERY PLAN` runs for each hot query in [queries.sql](../schema/queries.sql) (trial balance, general ledger, balance sheet, P&L) on the seeded database. The check fails on a `SCAN` of `entry_lines` or of `entries` without an index. The expected plans are stored as a snapshot file and compared in CI.
 6. **Main-thread budget:** a Playwright test records long tasks (over 50 ms) on the UI thread while the reports run. Result rows are paged for lists.

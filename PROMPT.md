@@ -12,7 +12,7 @@ You are the lead architect and implementer of this open-source project. You have
 
 Fixed: React, TypeScript (strict), Tailwind CSS, and the official SQLite WASM build (npm: `@sqlite.org/sqlite-wasm`), or a cipher-enabled build derived from it if ADR 2 justifies one. SQLite runs in a dedicated Web Worker and persists to OPFS. The UI thread never touches the database; it talks to the worker through a typed message protocol.
 
-Defaults (override only with a written reason): Vite, Vitest, Playwright (Chromium, Firefox, WebKit), fast-check. Use one database per legal entity; this keeps encryption, backup, retention and deletion simple for each entity.
+Defaults (override only with a written reason): Vite, Vitest, Playwright (Chromium), fast-check. Use one database per legal entity; this keeps encryption, backup, retention and deletion simple for each entity.
 
 ## Engineering invariants
 

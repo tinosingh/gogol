@@ -1,0 +1,8 @@
+PROMPT.md
+LICENSE
+docs/schema/
+.claude/
+coverage/
+dist/
+test-results
+playwright-report

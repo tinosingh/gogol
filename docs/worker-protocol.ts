@@ -34,7 +34,8 @@ export type CalendarDate = Brand<string, 'CalendarDate'>;
 /** Lowercase hex SHA-256 (LED-10). */
 export type Sha256Hex = Brand<string, 'Sha256Hex'>;
 /** Stable requirement reference, e.g. 'LED-1' or 'DAT-2'. Keeps the PRD as the single source of IDs. */
-export type RequirementId = `${'COA' | 'LED' | 'VAT' | 'RPT' | 'DAT' | 'SEC' | 'YE' | 'NFR' | 'LIC'}-${number}`;
+export type RequirementId =
+  `${'COA' | 'LED' | 'VAT' | 'RPT' | 'DAT' | 'SEC' | 'YE' | 'NFR' | 'LIC'}-${number}`;
 
 // -----------------------------------------------------------------------------
 // Envelope
@@ -84,7 +85,10 @@ export interface RequestPayloads {
 
   // Reads (RPT-*). Read-only transactions; drafts excluded (LED-11).
   QueryTrialBalance: { readonly periodId: PeriodId }; // RPT-1
-  QueryGeneralLedger: { readonly accountId: AccountId; readonly periodId: PeriodId }; // RPT-2
+  QueryGeneralLedger: {
+    readonly accountId: AccountId;
+    readonly periodId: PeriodId;
+  }; // RPT-2
 
   // Backup and restore (DAT-1, DAT-2). Bytes stream through a MessagePort, never one buffer (ADR 3).
   Backup: { readonly sink: MessagePort };
@@ -96,7 +100,9 @@ export interface RequestPayloads {
 
 export type RequestType = keyof RequestPayloads;
 
-export type Request = { readonly [K in RequestType]: { readonly type: K } & RequestPayloads[K] }[RequestType];
+export type Request = {
+  readonly [K in RequestType]: { readonly type: K } & RequestPayloads[K];
+}[RequestType];
 
 /** Read or write. Decides BEGIN DEFERRED or BEGIN IMMEDIATE in the worker. */
 export const requestMode = {
@@ -152,7 +158,10 @@ export interface ResponsePayloads {
   ReverseEntry: PostedEntryRef;
   QueryTrialBalance: { readonly rows: readonly TrialBalanceRow[] };
   QueryGeneralLedger: { readonly rows: readonly GeneralLedgerRow[] };
-  Backup: { readonly bytesWritten: number; readonly chainHead: Sha256Hex | null };
+  Backup: {
+    readonly bytesWritten: number;
+    readonly chainHead: Sha256Hex | null;
+  };
   Restore: { readonly schemaVersion: number };
 }
 
@@ -271,8 +280,14 @@ export interface TxHandle {
   run(sql: string, bind: readonly SqlValue[]): void;
   // Implementations must construct row objects with Object.create(null) to prevent prototype
   // pollution if a column alias ever matches '__proto__', 'constructor', or 'toString'.
-  get<T extends Record<string, SqlValue>>(sql: string, bind: readonly SqlValue[]): T | undefined;
-  all<T extends Record<string, SqlValue>>(sql: string, bind: readonly SqlValue[]): readonly T[];
+  get<T extends Record<string, SqlValue>>(
+    sql: string,
+    bind: readonly SqlValue[],
+  ): T | undefined;
+  all<T extends Record<string, SqlValue>>(
+    sql: string,
+    bind: readonly SqlValue[],
+  ): readonly T[];
 }
 
 /** Outcome of one unit of work. A failed unit leaves the database exactly as it was. */
@@ -297,4 +312,3 @@ export type TransactionOutcome<T> =
  * unit of work. Either the reversal and its numbering exist together, or neither does.
  */
 export type UnitOfWork<T> = (tx: TxHandle) => T;
-

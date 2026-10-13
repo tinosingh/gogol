@@ -12,13 +12,13 @@ Browsers evict origin storage, users clear site data, and devices get lost (PROM
 
 **Backup targets** (interface: a backup target accepts a byte stream and a name; a restore source yields one. Interface segregation, PROMPT.md SOLID.)
 
-| Target | Engines | Notes |
-| --- | --- | --- |
-| Download (`<a download>` from a Blob or a stream) | All | The fallback that works everywhere (PROMPT.md). The browser decides the folder. |
-| File System Access API (`showSaveFilePicker`, writable stream) | Chromium only | Writes straight to a path the user picks, so no download folder juggling. Not a live database backend. |
-| IndexedDB tier | All | Rejected: the official build has no IndexedDB VFS, and a second store adds a second copy to keep consistent. Added only if the browser matrix requires it (it does not, on the current assumptions). |
+| Target                                                         | Engines       | Notes                                                                                                                                                                                                |
+| -------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Download (`<a download>` from a Blob or a stream)              | All           | The fallback that works everywhere (PROMPT.md). The browser decides the folder.                                                                                                                      |
+| File System Access API (`showSaveFilePicker`, writable stream) | Chromium only | Writes straight to a path the user picks, so no download folder juggling. Not a live database backend.                                                                                               |
+| IndexedDB tier                                                 | All           | Rejected: the official build has no IndexedDB VFS, and a second store adds a second copy to keep consistent. Added only if the browser matrix requires it (it does not, on the current assumptions). |
 
-**Persistence:** `navigator.storage.persist()` is requested on first run (DAT-4). Where it is denied or unsupported, and on Safari, the UI recommends installing the app (DAT-4). The app never relies on the grant alone.
+**Persistence:** `navigator.storage.persist()` is requested on first run (DAT-4). Where it is denied or unsupported, the UI recommends installing the app (DAT-4). The app never relies on the grant alone.
 
 **Backup reminder (DAT-3):** the time of the last successful external backup is stored in the database (in the books' own file, so a restore brings back the matching reminder state). The interval is config. The reminder appears on open once the interval has passed.
 
@@ -37,4 +37,4 @@ Browsers evict origin storage, users clear site data, and devices get lost (PROM
 - The File System Access path is a Chromium convenience. Its absence is never a failure.
 - Each backup is a full copy. With gigabyte-sized attachment stores (ADR 3), the backup size and time become visible to users; the UI shows the estimated size before writing.
 - Restore needs a copy of the working database during the swap, so the quota must hold two copies. The UI checks the estimate first.
-- Re-verify before Phase 2: Safari's current eviction rules, and whether `VACUUM INTO` works through `opfs-sahpool`.
+- Re-verify before Phase 2 whether `VACUUM INTO` works through `opfs-sahpool`. Safari eviction rules apply only if Safari is added.
