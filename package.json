@@ -1,0 +1,50 @@
+{
+  "name": "gogol",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "knip": "knip",
+    "dup:check": "jscpd src",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run knip && npm run dup:check && npm run test && npm run build",
+    "e2e": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinosingh/gogol.git"
+  },
+  "type": "module",
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.53.4-build2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@playwright/test": "1.64.0",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "jscpd": "5.4.1",
+    "knip": "6.41.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.4"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  }
+}
