@@ -12,26 +12,26 @@ Each user's database lives on their device, so no one upgrades it centrally. Upg
 
 **Version marker**
 
-| Option | Notes |
-| --- | --- |
-| `PRAGMA user_version` | One integer in the file header. No extra table. Read and written inside the transaction. **Chosen.** |
-| `schema_migrations` table | Records history, which the app does not need (YAGNI). Another table to keep in sync. |
+| Option                    | Notes                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `PRAGMA user_version`     | One integer in the file header. No extra table. Read and written inside the transaction. **Chosen.** |
+| `schema_migrations` table | Records history, which the app does not need (YAGNI). Another table to keep in sync.                 |
 
 **Runner**
 
-| Option | Notes |
-| --- | --- |
-| Up-only SQL files, numbered, applied in one transaction each | **Chosen.** Matches "the migrations are the only schema definition" (PROMPT.md SSOT). |
-| Down migrations | Rejected: a rollback would run older code against data it does not understand, and the hash chain (LED-10) must stay verifiable. Recovery is restore from backup. |
+| Option                                                       | Notes                                                                                                                                                             |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Up-only SQL files, numbered, applied in one transaction each | **Chosen.** Matches "the migrations are the only schema definition" (PROMPT.md SSOT).                                                                             |
+| Down migrations                                              | Rejected: a rollback would run older code against data it does not understand, and the hash chain (LED-10) must stay verifiable. Recovery is restore from backup. |
 
 **Table rebuilds:** SQLite's documented procedure for changes ALTER TABLE cannot express: foreign keys off (outside any transaction), begin, create the new table, copy rows, drop the old table, rename, recreate indexes, triggers and views, run `foreign_key_check`, commit, foreign keys on. Prefer `ALTER TABLE ADD COLUMN`, `RENAME` and `DROP COLUMN` where they suffice (SQLite 3.35+).
 
 **Service-worker update policy**
 
-| Option | Notes |
-| --- | --- |
-| Activate new code immediately | Rejected: an open tab could run old JavaScript against a database migrated by new code. |
-| Wait, then reload when no database connection is open | **Chosen.** The single-connection rule (ADR 1) makes "no connection open" checkable. |
+| Option                                                | Notes                                                                                   |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Activate new code immediately                         | Rejected: an open tab could run old JavaScript against a database migrated by new code. |
+| Wait, then reload when no database connection is open | **Chosen.** The single-connection rule (ADR 1) makes "no connection open" checkable.    |
 
 ## Decision
 

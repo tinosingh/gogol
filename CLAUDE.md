@@ -1,13 +1,13 @@
 # CLAUDE.md: gogol engineering rules
 
-Lasting rules for future sessions. Scope and requirements live in [docs/prd.md](docs/prd.md). Decisions live in [docs/adr/](docs/adr/). Requirement IDs (LED-*, DAT-*, SEC-*, NFR-*, …) are cited, never restated. Workflow and staging rules are in [PROMPT.md](PROMPT.md).
+Lasting rules for future sessions. Scope and requirements live in [docs/prd.md](docs/prd.md). Decisions live in [docs/adr/](docs/adr/). Requirement IDs (LED-_, DAT-_, SEC-_, NFR-_, …) are cited, never restated. Workflow and staging rules are in [PROMPT.md](PROMPT.md).
 
 ## Stack (fixed)
 
 - React, TypeScript (strict), Tailwind CSS.
 - SQLite via the official WASM build `@sqlite.org/sqlite-wasm`, or a cipher-enabled build if [ADR 2](docs/adr/adr-02-encryption-vfs.md) is accepted.
 - SQLite runs in a dedicated Web Worker and persists to OPFS (`opfs-sahpool`, [ADR 1](docs/adr/adr-01-hosting-opfs-vfs.md)). The UI thread never touches the database.
-- Defaults unless a written reason overrides them: Vite, Vitest, Playwright (Chromium, Firefox, WebKit), fast-check.
+- Defaults unless a written reason overrides them: Vite, Vitest, Playwright (Chromium), fast-check.
 - One database per legal entity.
 
 ## Engineering invariants
@@ -76,15 +76,17 @@ Order when rules conflict: legal invariants and data integrity, then security, t
 
 ## Commands
 
-Placeholder. Fill in during Phase 0, once `package.json` and the config files exist. Do not guess commands before then.
+Versions and the Node range live in `package.json`; the CI workflow is `.github/workflows/ci.yml`.
 
 - Install: `npm ci`
-- Dev server: TBD
-- Unit and SQL tests: TBD
-- Browser tests: TBD
-- Lint, typecheck, format: TBD
-- Benchmark: TBD
-- Migration check: TBD
+- Dev server: `npm run dev`
+- Unit tests: `npm test`
+- Browser tests (Chromium): `npm run e2e`
+- Lint, typecheck, format: `npm run lint`, `npm run typecheck`, `npm run format:check`
+- Dead code and duplicates: `npm run knip`, `npm run dup:check`
+- All gates, as CI runs them: `npm run check`
+- Benchmark: not yet (Phase 0 harness)
+- Migration check: not yet (first migration)
 
 ## Where to look
 

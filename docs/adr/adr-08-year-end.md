@@ -15,19 +15,19 @@ The PRD fixes the outcome, not the mechanics. Mechanics are decided here.
 
 **Closing entries**
 
-| Option | Notes |
-| --- | --- |
-| A. Closing entries are ordinary posted entries in a closing journal, in the last period of the year | **Chosen.** Reuses LED-1 to LED-3, the audit trail, the chain and the reports. No special-case storage. |
-| B. Computed closing: reports subtract the result, nothing is posted | Rejected. The books would not show the transfer, and the accountant's closing would be missing from the chain. |
-| C. Closing via a stored table of year-end balances | Rejected: a second copy of balances (invariant 3). |
+| Option                                                                                              | Notes                                                                                                          |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| A. Closing entries are ordinary posted entries in a closing journal, in the last period of the year | **Chosen.** Reuses LED-1 to LED-3, the audit trail, the chain and the reports. No special-case storage.        |
+| B. Computed closing: reports subtract the result, nothing is posted                                 | Rejected. The books would not show the transfer, and the accountant's closing would be missing from the chain. |
+| C. Closing via a stored table of year-end balances                                                  | Rejected: a second copy of balances (invariant 3).                                                             |
 
 **Opening balances**
 
-| Option | Notes |
-| --- | --- |
+| Option                                                                                                          | Notes                                                                          |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | A. Opening entry in the first period of the new year, in an opening journal, one line per balance-sheet account | **Chosen.** Ordinary entry, so LED-1 checks it and it is numbered and chained. |
-| B. A `balance` column on `accounts` | Rejected: a second source of balances. |
-| C. Import without an entry | Rejected: breaks LED-1 and the chain. |
+| B. A `balance` column on `accounts`                                                                             | Rejected: a second source of balances.                                         |
+| C. Import without an entry                                                                                      | Rejected: breaks LED-1 and the chain.                                          |
 
 **Carry-forward of result:** the result goes to `retained_earnings` in the closing entries. Whether a separate `profit_or_loss_brought_forward` role is needed is an accounting decision for the Finnish chart template, flagged for an accountant (it is not invented here).
 
@@ -41,7 +41,7 @@ The PRD fixes the outcome, not the mechanics. Mechanics are decided here.
 3. **Opening balance import (LED-12):** the same opening entry, built from a user's entries or a file. The import is validated before posting: a non-balancing import is rejected with `BalanceViolation` and nothing is written (one unit of work, worker-protocol.ts).
 4. **Role use:** closing and opening lines use account roles (`result_for_period`, `retained_earnings`), never account numbers (COA-2).
 5. **Acceptance test (YE-1):** a property test over random years: the new year's opening trial balance equals the closing balance sheet, account by account.
-6. **Corrections after closing:** not in v1. A correction in a closed year needs a reversal in an open period, which the owner must approve as policy before Phase 6. Flagged in [prd-updates-stage1.md](../prd-updates-stage1.md).
+6. **Corrections after closing:** not in v1 (owner decision, 2026-10-13; PRD D9). A correction is a reversal plus a new entry in an open period.
 
 ## Consequences
 

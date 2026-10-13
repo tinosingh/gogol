@@ -14,9 +14,9 @@ SQLite core has no SHA-256 function, so hashes are computed in TypeScript and st
 
 **What is hashed**
 
-| Option | Verdict |
-| --- | --- |
-| Raw rows of `entries` and `entry_lines` | Rejected. Any schema migration that changes a column order or type changes the hash. |
+| Option                                                | Verdict                                                                                            |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Raw rows of `entries` and `entry_lines`               | Rejected. Any schema migration that changes a column order or type changes the hash.               |
 | Canonical, versioned serialization of business values | **Chosen.** Only the values that define the posted entry, in a fixed order, with a version prefix. |
 
 **Canonical form (v1):** a UTF-8 string built field by field, each value length-prefixed, in this order: format tag `gogol-entry-v1`, journal code, fiscal year start date, entry number, accounting date, description, posted-at UTC instant, then each line in `line_no` order: account id, side, minor-unit amount. Account **ids** are used, not account numbers, because numbers can be renamed (LED-6 logs the rename, the entry must not change).
@@ -25,20 +25,20 @@ SQLite core has no SHA-256 function, so hashes are computed in TypeScript and st
 
 **Hash function and timing**
 
-| Option | Notes |
-| --- | --- |
-| WebCrypto `subtle.digest` | Async. One await per entry for 100 000 entries is too slow (PROMPT.md). |
+| Option                                                        | Notes                                                                                                                                                          |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WebCrypto `subtle.digest`                                     | Async. One await per entry for 100 000 entries is too slow (PROMPT.md).                                                                                        |
 | Synchronous audited JavaScript SHA-256 (e.g. `@noble/hashes`) | Synchronous, small, MIT. **Chosen**, pending a check of its audit status and size at adoption. One new dependency, justified: it replaces 100 000 async calls. |
-| Hashing in parallel batches | Kept as the fallback if the synchronous library is too slow in the benchmark. |
+| Hashing in parallel batches                                   | Kept as the fallback if the synchronous library is too slow in the benchmark.                                                                                  |
 
 **Verification schedule**
 
-| Check | When | Why |
-| --- | --- | --- |
-| `PRAGMA quick_check` | Every open | Cheap structural check (DAT-2, invariant 6). |
-| Full chain verification | Every open, inside the NFR-1 cold-start budget; tail-only if the budget breaks, with the full pass moved to export | Detects edits to posted history at open (LED-10 acceptance). |
-| `PRAGMA integrity_check` (full) | On import, on restore, before export | Thorough, slower (DAT-2). |
-| Full chain verification | Before export and after every migration (ADR 5) | The printed head must match what the file gives. |
+| Check                           | When                                                                                                               | Why                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `PRAGMA quick_check`            | Every open                                                                                                         | Cheap structural check (DAT-2, invariant 6).                 |
+| Full chain verification         | Every open, inside the NFR-1 cold-start budget; tail-only if the budget breaks, with the full pass moved to export | Detects edits to posted history at open (LED-10 acceptance). |
+| `PRAGMA integrity_check` (full) | On import, on restore, before export                                                                               | Thorough, slower (DAT-2).                                    |
+| Full chain verification         | Before export and after every migration (ADR 5)                                                                    | The printed head must match what the file gives.             |
 
 ## Decision
 

@@ -1,6 +1,6 @@
 # ADR 2: Encryption vs the VFS
 
-- **Status:** Proposed. The persistence path is fixed in Phase 0 by a spike; encryption ships in Phase 5.
+- **Status:** Live-database encryption dropped; replaced by OS full-disk encryption (PRD proposal E1, approved 2026-10-13). The backup-encryption design for PRD SEC-2 is still to write. Spike results are below.
 - **Requirements:** SEC-1, SEC-2, SEC-3, SEC-4, SEC-5, DAT-1, DAT-9, NFR-1.
 - **Related:** [ADR 1](adr-01-hosting-opfs-vfs.md), [ADR 3](adr-03-attachments.md), [ADR 9](adr-09-performance.md), [security.md](../security.md).
 
@@ -15,23 +15,23 @@ PROMPT.md asks for one persistence path for encrypted and unencrypted databases.
 
 ## Options considered
 
-| Criterion | A. In-memory + snapshots | B. Cipher build on `opfs-sahpool` |
-| --- | --- | --- |
-| Crash loss | Everything since the last snapshot. A snapshot rewrites the whole database, so snapshotting per commit is too costly at 300 000 lines. | Per-transaction, like any SQLite file. |
-| Memory | Whole database in WASM memory. Capped by the largest single allocation of the build and the browser (verify in the spike). Conflicts with large attachments (ADR 3). | Page cache only. |
-| Single persistence path | Unencrypted databases would also be in memory, so the crash-loss problem applies to everyone. | Yes. |
-| Compatibility | Uses only the proven `sqlite3_serialize` path. | Codec compatibility with OPFS VFSes is undocumented. Must be proven. |
-| Ciphers | Our choice (WebCrypto AES-GCM over the snapshot). | Limited to the codecs the build ships. |
-| Dependencies | None beyond WebCrypto. | One prebuilt WASM artifact from a third party (verify its hash in the build). |
+| Criterion               | A. In-memory + snapshots                                                                                                                                             | B. Cipher build on `opfs-sahpool`                                             |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Crash loss              | Everything since the last snapshot. A snapshot rewrites the whole database, so snapshotting per commit is too costly at 300 000 lines.                               | Per-transaction, like any SQLite file.                                        |
+| Memory                  | Whole database in WASM memory. Capped by the largest single allocation of the build and the browser (verify in the spike). Conflicts with large attachments (ADR 3). | Page cache only.                                                              |
+| Single persistence path | Unencrypted databases would also be in memory, so the crash-loss problem applies to everyone.                                                                        | Yes.                                                                          |
+| Compatibility           | Uses only the proven `sqlite3_serialize` path.                                                                                                                       | Codec compatibility with OPFS VFSes is undocumented. Must be proven.          |
+| Ciphers                 | Our choice (WebCrypto AES-GCM over the snapshot).                                                                                                                    | Limited to the codecs the build ships.                                        |
+| Dependencies            | None beyond WebCrypto.                                                                                                                                               | One prebuilt WASM artifact from a third party (verify its hash in the build). |
 
 **Ciphers.** SEC-1 names AES-256-GCM. I could not verify in this session whether the prebuilt Multiple Ciphers WASM exposes an AES-256-GCM page cipher. If it does not, the choice is between an owner-approved change to SEC-1 (for example to ChaCha20-Poly1305 or AES-256-CBC with HMAC, whichever the build offers and the spike validates) and option A. This is a PRD change, not an engineering choice, and it goes to the owner ([prd-updates-stage1.md](../prd-updates-stage1.md)).
 
 **KDF.**
 
-| Option | Notes |
-| --- | --- |
-| PBKDF2-HMAC-SHA-256 via WebCrypto | Native, no dependency. OWASP's Password Storage Cheat Sheet gives 600 000 iterations for this function (to be re-checked at Phase 5). Time is measured in the cold-start budget (NFR-1). |
-| Argon2id via an audited WASM library | Memory-hard, which is better against GPU attackers. Adds a dependency and WASM startup cost. |
+| Option                               | Notes                                                                                                                                                                                    |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PBKDF2-HMAC-SHA-256 via WebCrypto    | Native, no dependency. OWASP's Password Storage Cheat Sheet gives 600 000 iterations for this function (to be re-checked at Phase 5). Time is measured in the cold-start budget (NFR-1). |
+| Argon2id via an audited WASM library | Memory-hard, which is better against GPU attackers. Adds a dependency and WASM startup cost.                                                                                             |
 
 **Chosen for v1: PBKDF2-HMAC-SHA-256 at the current OWASP count**, because it adds no dependency and stays inside the cold-start budget. The KDF id and its parameters are stored in each key slot, so Argon2id can be added later for new slots without re-encrypting data (PROMPT.md, hard problem 2). If the Phase 0 benchmark shows the count breaks NFR-1, the count is lowered only with a written reason, and Argon2id is reconsidered.
 
@@ -55,3 +55,24 @@ PROMPT.md asks for one persistence path for encrypted and unencrypted databases.
 - SEC-1 wording may change (cipher name). That is a PRD decision, listed in [prd-updates-stage1.md](../prd-updates-stage1.md).
 - The codec adds a third-party WASM artifact. It is pinned by version and hash, and the license (MIT) is recorded.
 - Passkey support will be partial, so the password path must stay complete and tested on its own.
+
+## Spike results (Phase 0, Chromium, 2026-10-13)
+
+- **The cipher build has no AES-256-GCM.** Its WASM contains `aes128cbc`, `aes256cbc`, `chacha20`, `ascon128`, the `aegis` family and `sqlcipher`. SEC-1 names AES-256-GCM, so P1 applies: the owner must choose the cipher.
+- **Its SQLite is 3.50.4**, not 3.53. ADR 1 needs `pauseVfs()` (3.50+), so that holds.
+- **Gate failed: `PRAGMA key` is refused on the `opfs-sahpool` VFS.** The error is "Encryption is not supported by the VFS" (`e2e/cipher.spec.ts`). Option B cannot run on the VFS that ADR 1 chose.
+- **Gate also failed in memory:** `Setting key not supported for in-memory or temporary databases`. Under Node, no file VFS is available for this build, so the codec could not be tested on a real file outside the browser.
+- **Not yet tested:** the cipher on the `opfs` VFS in a cross-origin-isolated page (needs COOP/COEP headers, which ADR 1 rejected for GitHub Pages). A header-capable host, which ADR 1 prefers, would allow it. Also untested: the nonce strategy and the wrong-key path.
+
+**Decision needed (owner):** choose one.
+
+1. Option B on the `opfs` VFS, which needs a header-capable host (COOP/COEP) and a re-run of ADR 1's VFS decision.
+2. Option A: in-memory database with encrypted snapshots (ADR 2 fallback), accepting the crash-loss and memory limits.
+3. Change SEC-1 to an authenticated cipher the build supports (for example AEGIS-256) on option B with the `opfs` VFS.
+
+### Results 2 (Chromium, 2026-10-13): the opfs VFS with COOP/COEP
+
+- **Cross-origin isolation works on the preview server** (`crossOriginIsolated` is true with COOP `same-origin` and COEP `require-corp`).
+- **Still refused:** the cipher build rejects `PRAGMA key` on the `opfs` VFS as well: "Encryption is not supported by the VFS" (`e2e/isolated.spec.ts`).
+- **Conclusion:** option B does not work with this build on any OPFS VFS, so the host's header ability does not unblock it. The upstream SQLite3MultipleCiphers build has not been tested; a host decision should not wait on it.
+- **Next:** the owner chooses option A, or defers encryption and re-plans Phase 5. A custom encrypting VFS is not recommended: it would be our own storage-layer cryptography, which the coding standards forbid.
