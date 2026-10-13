@@ -26,7 +26,7 @@ Browsers evict origin storage, users clear site data, and devices get lost (PROM
 
 1. **OPFS is the working copy. The backup file is the archive.** The UI says so on first run and in the backup screen.
 2. **Backup:** the worker streams a consistent snapshot (SQLite online backup API, or `VACUUM INTO` if the spike shows it works on `opfs-sahpool`) through a `MessagePort` (ADR 3). The UI writes it to the chosen target. Target is File System Access where available, otherwise download. The format is the encrypted or plain SQLite file (DAT-9 documents it).
-3. **Restore:** the file is untrusted (DAT-2). Steps: check the SQLite header, open in defensive mode with `trusted_schema = OFF`, run `integrity_check`, read `user_version`, refuse a newer version (DAT-6), run the migration runner (ADR 5) on a copy, then replace the working copy. The working copy is not touched until every check passes.
+3. **Restore:** the file is untrusted (DAT-2). Steps: check the SQLite header, open in defensive mode with `trusted_schema = OFF`, run `integrity_check`, read `user_version`, refuse a newer version (DAT-6), run the migration runner (ADR 5) on a copy, then replace the working copy. The working copy is not touched until every check passes. The same `PRAGMA defensive = ON; PRAGMA trusted_schema = OFF` apply to the **working database** on every open, not only to imported files (see CLAUDE.md invariant 6).
 4. **Restore replaces, never merges.** Merging two ledgers would need a conflict model that the PRD does not ask for (sync is a non-goal, PRD §5).
 5. **Persistence:** `persist()` requested on first run (DAT-4); install recommendation shown where it applies.
 6. **Reminder:** DAT-3 as above.

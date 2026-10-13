@@ -55,6 +55,7 @@ Boundaries are numbered as in [architecture.md §3](architecture.md#3-trust-boun
 - A person who controls the file can rewrite the whole chain. A printed head from before the change will then differ. A head that was never printed cannot help.
 - Triggers can be dropped in a copy of the file by an external tool. The chain catches the resulting edits on open; a dropped trigger alone does not change a hash.
 - Timestamps come from the device clock and can be set arbitrarily. Chain order uses `posting_seq`.
+- **Audit log not in the chain.** `audit_log` rows (account renames, role reassignments, settings changes) are protected by append-only triggers but are not part of the hash chain. An external tool that drops those triggers (via `writable_schema`) can delete audit log rows silently; a LED-10 chain check will not catch it. `PRAGMA defensive = ON` on every connection (CLAUDE.md invariant 6) is the primary control against this; it prevents `writable_schema` from being set through the app.
 
 ## 5. Controls summary
 

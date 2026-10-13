@@ -88,7 +88,10 @@ export interface RequestPayloads {
 
   // Backup and restore (DAT-1, DAT-2). Bytes stream through a MessagePort, never one buffer (ADR 3).
   Backup: { readonly sink: MessagePort };
-  Restore: { readonly source: Blob }; // treated as untrusted: integrity and schema checks first (DAT-2)
+  // source is untrusted: integrity and schema checks first (DAT-2). Worker must reject if source.size
+  // exceeds the current storage quota estimate before opening it — an unbounded Blob can exhaust worker
+  // memory before any SQLite check runs.
+  Restore: { readonly source: Blob };
 }
 
 export type RequestType = keyof RequestPayloads;
@@ -266,6 +269,8 @@ export type SqlValue = number | string | bigint | Uint8Array | null;
  */
 export interface TxHandle {
   run(sql: string, bind: readonly SqlValue[]): void;
+  // Implementations must construct row objects with Object.create(null) to prevent prototype
+  // pollution if a column alias ever matches '__proto__', 'constructor', or 'toString'.
   get<T extends Record<string, SqlValue>>(sql: string, bind: readonly SqlValue[]): T | undefined;
   all<T extends Record<string, SqlValue>>(sql: string, bind: readonly SqlValue[]): readonly T[];
 }

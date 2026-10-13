@@ -17,7 +17,7 @@ Lasting rules for future sessions. Scope and requirements live in [docs/prd.md](
 3. **Journal lines are the single source of truth.** Balances and reports derive from them. Any cache must be rebuildable from the journal and checkable against it.
 4. **Law-dependent reference data is versioned data with validity dates (LED-9).** Each value has one source at a time. A posted line's rate and VAT treatment are a historical record, not a second copy.
 5. **Accounting dates are `YYYY-MM-DD` (LED-8).** Never timestamps. Audit timestamps are UTC instants. The browser clock is user-controlled and is named as such in the threat model.
-6. **Every connection runs `PRAGMA foreign_keys = ON`. All tables are `STRICT`. All SQL uses bound parameters.**
+6. **Every connection runs `PRAGMA foreign_keys = ON; PRAGMA defensive = ON; PRAGMA trusted_schema = OFF`. All tables are `STRICT`. All SQL uses bound parameters.** `defensive = ON` prevents `writable_schema` from disabling triggers (F2).
 
 Enforce LED rules in the database wherever SQLite can express them, and cover each with a test that cites its ID. The requirement-to-enforcement map is at the end of [docs/schema/migration-001.sql](docs/schema/migration-001.sql).
 

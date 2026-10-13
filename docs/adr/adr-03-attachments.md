@@ -27,6 +27,7 @@ A single whole-BLOB value is not an option under any choice: SQLite's default ma
 5. **Adding to posted entries:** **owner decision needed.** Proposed: allowed, because late vouchers are normal, and the entry's accounting content stays immutable (LED-2). The attachment table records when it was added.
 6. **Media types and size:** an allow-list (PDF, PNG, JPEG, and any type the owner adds). **Proposed per-file limit: 25 MiB.** This number has no source in the PRD and is a placeholder for the owner to decide. It is set in config.
 7. **Export:** attachments travel in the full backup and are not exported as loose files in v1 (DAT-7 covers CSV and JSON of journals and reports). Loose export is a later decision (YAGNI).
+8. **Content-type safety for future preview:** the stored `media_type` column is set at upload from the allow-list check, not derived from the file's bytes. Any future inline preview feature MUST re-derive the content type from the raw bytes (magic-byte sniff) and serve the blob with `Content-Disposition: attachment`; it must never trust the stored `media_type` value to decide rendering. `image/svg+xml` with embedded script executes in the app's origin; it must stay off the allow-list.
 
 ## Consequences
 
